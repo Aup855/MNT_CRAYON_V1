@@ -1,0 +1,52 @@
+"""
+Validation de PastilleV1 : source uniforme, Dirichlet en surface.
+En regime permanent la solution exacte est une parabole :
+    T(r) = T_surf + (dot_q / 4k) * (R^2 - r^2)
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+from pastille_v1 import PastilleV1
+
+alpha = 6.9e-7
+k_th = 3.0                 # ~ conductivite UO2
+R = 4.1e-3                 # rayon pastille [m]
+N = 101
+T_surf = 320.0              # degC, cote gaine/eau
+dot_q = 3.8e8               # W/m3, ordre de grandeur REP
+
+dt = 0.05                   # s, CN inconditionnellement stable
+n_steps = 6000               # -> t = 300 s, tau ~ R^2/alpha ~ 24 s
+
+pastille = PastilleV1(
+    alpha=alpha, k_th=k_th, R=R, N=N, dt=dt,
+    T_surface=T_surf, T_init=np.full(N, T_surf), source=dot_q,
+)
+pastille.solve(n_steps)
+
+T_exact = T_surf + (dot_q / (4 * k_th)) * (R**2 - pastille.r**2)
+err = np.max(np.abs(pastille.T - T_exact))
+
+r_face_last = R - pastille.dr / 2
+P_generee = dot_q * np.pi * r_face_last**2
+P_sortante = pastille.flux_sortant_frontiere()
+
+print(f"T centre numerique : {pastille.T[0]:.4f} degC")
+print(f"T centre exact      : {T_exact[0]:.4f} degC")
+print(f"erreur max          : {err:.3e} degC")
+print(f"puissance generee   : {P_generee:.4f} W/m")
+print(f"puissance sortante  : {P_sortante:.4f} W/m")
+print(f"ecart relatif bilan : {abs(P_generee - P_sortante) / P_generee:.3e}")
+
+plt.figure(figsize=(8, 5))
+plt.plot(pastille.r * 1e3, pastille.T, 'o', ms=4, color="crimson", label="numerique (VF)")
+plt.plot(pastille.r * 1e3, T_exact, 'k-', lw=1.5, label="parabole exacte")
+plt.xlabel("rayon [mm]")
+plt.ylabel("T [degC]")
+plt.title("Pastille cylindrique - source uniforme - regime permanent")
+plt.legend()
+plt.grid(alpha=0.3)
+plt.tight_layout()
+plt.savefig("pastille_v1_validation.png", dpi=130)
+plt.show()
